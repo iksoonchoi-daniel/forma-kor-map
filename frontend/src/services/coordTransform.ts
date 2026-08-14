@@ -21,6 +21,27 @@ export function wgs84ToLocalMeters(refLon: number, refLat: number, lon: number, 
 }
 
 /**
+ * Converts local coordinates in meters back to WGS84 coordinates.
+ * @param refLon Reference longitude
+ * @param refLat Reference latitude
+ * @param x Target x in local meters
+ * @param y Target y in local meters
+ * @returns [lon, lat]
+ */
+export function localMetersToWgs84(refLon: number, refLat: number, x: number, y: number): [number, number] {
+    const refLatRad = refLat * (Math.PI / 180);
+    const refLonRad = refLon * (Math.PI / 180);
+
+    const latRad = (y / EARTH_RADIUS) + refLatRad;
+    const lonRad = (x / (EARTH_RADIUS * Math.cos(refLatRad))) + refLonRad;
+
+    const lat = latRad * (180 / Math.PI);
+    const lon = lonRad * (180 / Math.PI);
+
+    return [lon, lat];
+}
+
+/**
  * Converts a GeoJSON Polygon coordinates to Forma local footprint.
  */
 export function convertPolygonToFootprint(

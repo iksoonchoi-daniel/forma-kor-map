@@ -39,16 +39,26 @@ function App() {
     if (!refPoint) return;
     setLoading(true); setError(null); setSuccess(null);
     try {
-      const response = await fetch(`http://localhost:8000/api/cadastre/point?lon=${refPoint.lon}&lat=${refPoint.lat}&buffer_meters=${buffer}`)
+      // 1. Get terrain bounds in local meters
+      const { Forma } = await import("forma-embedded-view-sdk/auto");
+      const bbox = await Forma.terrain.getBbox();
+      
+      // 2. Convert to WGS84 bounding box
+      const { localMetersToWgs84 } = await import("./services/coordTransform");
+      const [minLon, minLat] = localMetersToWgs84(refPoint.lon, refPoint.lat, bbox.min.x, bbox.min.y);
+      const [maxLon, maxLat] = localMetersToWgs84(refPoint.lon, refPoint.lat, bbox.max.x, bbox.max.y);
+
+      // 3. Fetch exact cadastre within this box
+      const response = await fetch(`http://localhost:8000/api/cadastre/bbox?minx=${minLon}&miny=${minLat}&maxx=${maxLon}&maxy=${maxLat}`)
       if (!response.ok) throw new Error(`API 오류: ${response.status}`)
       
       const geojson = await response.json()
       if (!geojson.features || geojson.features.length === 0) {
-        throw new Error("해당 반경 내에 지적도 데이터가 없습니다.")
+        throw new Error("해당 씬(Scene) 영역 내에 지적도 데이터가 없습니다.")
       }
 
-      await addSiteLimitElements(geojson.features, refPoint.lon, refPoint.lat, "parcel")
-      setSuccess(`성공적으로 ${geojson.features.length}개의 지적도를 배경(Parcel)으로 임포트했습니다.`)
+      await addSiteLimitElements(geojson.features, refPoint.lon, refPoint.lat, "지적도")
+      setSuccess(`성공적으로 ${geojson.features.length}개의 지적도를 씬(Scene) 영역에 맞게 임포트했습니다.`)
     } catch (err: any) {
       setError(err.message || "오류가 발생했습니다.")
     } finally {
@@ -106,16 +116,8 @@ function App() {
             <div className="status-item"><span className="label">경도:</span><span className="value">{refPoint?.lon?.toFixed(6) || "로딩중..."}</span></div>
             <div className="status-item"><span className="label">위도:</span><span className="value">{refPoint?.lat?.toFixed(6) || "로딩중..."}</span></div>
           </div>
-          <div className="control-panel">
-            <label>검색 반경:</label>
-            <select value={buffer} onChange={(e) => setBuffer(Number(e.target.value))} disabled={loading}>
-              <option value={100}>100m</option>
-              <option value={300}>300m</option>
-              <option value={500}>500m</option>
-            </select>
-          </div>
           <button className="primary-btn" onClick={handleImportContext} disabled={loading || !refPoint}>
-            {loading ? "불러오는 중..." : "배경 지적도 가져오기"}
+            {loading ? "불러오는 중..." : "배경 지적도 가져오기 (씬 전체)"}
           </button>
         </div>
       )}
