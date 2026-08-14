@@ -60,7 +60,16 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
                     type: "Polygon",
                     coordinates: footprint
                 },
-                properties: {}
+                properties: {
+                    stroke: {
+                        color: "#4285F4", // Google Blue color for lines
+                        lineWidth: 1.0
+                    },
+                    fill: {
+                        color: "#4285F4",
+                        opacity: 0.05 // Very transparent fill
+                    }
+                }
             }
         };
     });
