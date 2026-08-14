@@ -47,7 +47,7 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
             });
         }
 
-        const elementId = feature.properties?.jibun ? `cadastre-${feature.properties.jibun}` : crypto.randomUUID();
+        const elementId = crypto.randomUUID();
         
         return {
             elementId,

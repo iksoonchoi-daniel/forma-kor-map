@@ -45,8 +45,13 @@ function App() {
       
       // 2. Convert to WGS84 bounding box
       const { localMetersToWgs84 } = await import("./services/coordTransform");
-      const [minLon, minLat] = localMetersToWgs84(refPoint.lon, refPoint.lat, bbox.min.x, bbox.min.y);
-      const [maxLon, maxLat] = localMetersToWgs84(refPoint.lon, refPoint.lat, bbox.max.x, bbox.max.y);
+      const [lon1, lat1] = localMetersToWgs84(refPoint.lon, refPoint.lat, bbox.min.x, bbox.min.y);
+      const [lon2, lat2] = localMetersToWgs84(refPoint.lon, refPoint.lat, bbox.max.x, bbox.max.y);
+
+      const minLon = Math.min(lon1, lon2);
+      const maxLon = Math.max(lon1, lon2);
+      const minLat = Math.min(lat1, lat2);
+      const maxLat = Math.max(lat1, lat2);
 
       // 3. Fetch exact cadastre within this box
       const response = await fetch(`http://localhost:8000/api/cadastre/bbox?minx=${minLon}&miny=${minLat}&maxx=${maxLon}&maxy=${maxLat}`)
