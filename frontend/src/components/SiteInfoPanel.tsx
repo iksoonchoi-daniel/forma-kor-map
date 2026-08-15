@@ -261,9 +261,16 @@ export default function SiteInfoPanel({ targetFC, contextFC }: SiteInfoPanelProp
     return "#f5f5f5";
   };
 
+  const targetJibun = targetFC?.features?.[0]?.properties?.jibun || '지번 정보 없음';
+
   return (
     <div className="tab-content">
-      <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>대지 및 주변 현황 분석 리포트</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <h3 style={{ margin: 0, fontSize: '16px' }}>대지 및 주변 현황 분석 리포트</h3>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1565c0', background: '#e3f2fd', padding: '4px 8px', borderRadius: '4px' }}>
+          📍 {targetJibun}
+        </span>
+      </div>
       
       <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', background: '#f5f5f5', padding: '10px', borderRadius: '8px' }}>
         <div style={{ flex: 1 }}>
