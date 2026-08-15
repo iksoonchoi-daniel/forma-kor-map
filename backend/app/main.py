@@ -21,6 +21,16 @@ async def get_cadastre_point(lon: float, lat: float, buffer_meters: float = 300.
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from app.services.vworld_service import get_cadastre_target_and_context_by_point
+
+@app.get("/api/cadastre/reverse")
+async def get_cadastre_reverse(lon: float, lat: float, include_context: bool = False):
+    try:
+        result = get_cadastre_target_and_context_by_point(lon, lat, include_context)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/cadastre/bbox")
 async def get_cadastre_bbox(minx: float, miny: float, maxx: float, maxy: float):
     try:

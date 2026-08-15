@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getProjectLocation, addSiteLimitElements } from './services/formaService'
 import SiteInfoPanel from './components/SiteInfoPanel'
 import './index.css'
@@ -14,6 +14,12 @@ function App() {
   const [addresses, setAddresses] = useState<string>('')
   const [includeContext, setIncludeContext] = useState<boolean>(false)
   const [analysisData, setAnalysisData] = useState<{targetFC: any, contextFC: any} | null>(null)
+  
+  const currentPnuRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    currentPnuRef.current = analysisData?.targetFC?.features?.[0]?.properties?.pnu || null;
+  }, [analysisData]);
 
   useEffect(() => {
     // Initialize ref point from Forma
@@ -50,6 +56,61 @@ function App() {
     }
     initForma()
   }, [])
+
+  // Auto-fill address and analysis data when user selects a polygon in Forma
+  useEffect(() => {
+    let unsubscribe: () => void;
+    const setupSelection = async () => {
+      try {
+        const { Forma } = await import("forma-embedded-view-sdk/auto");
+        const sub = await Forma.selection.subscribe(async ({ paths }) => {
+          if (!paths || paths.length === 0) return;
+          try {
+            const footprint = await Forma.geometry.getFootprint({ path: paths[0] });
+            if (!footprint || !footprint.coordinates || footprint.coordinates.length === 0) return;
+            
+            let cx = 0, cy = 0, count = 0;
+            footprint.coordinates.forEach((c: [number, number]) => {
+              cx += c[0]; cy += c[1]; count++;
+            });
+            cx /= count; cy /= count;
+            
+            const location = await Forma.project.getGeoLocation();
+            if (!location) return;
+            const [refLat, refLon] = location;
+            
+            const { localMetersToWgs84 } = await import("./services/coordTransform");
+            const [lon, lat] = localMetersToWgs84(refLon, refLat, cx, cy);
+            
+            const res = await fetch(`http://localhost:8000/api/cadastre/reverse?lon=${lon}&lat=${lat}&include_context=${includeContext}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.target && data.target.features && data.target.features.length > 0) {
+                const jibun = data.target.features[0].properties?.jibun;
+                const pnu = data.target.features[0].properties?.pnu;
+                
+                // If this is the exact same parcel we just generated/loaded, do nothing
+                // to avoid overwriting the user's typed address.
+                if (pnu && pnu === currentPnuRef.current) {
+                  return;
+                }
+                
+                if (jibun) {
+                  setAddresses(jibun); // Auto-fill the address input!
+                  setAnalysisData({ targetFC: data.target, contextFC: data.context }); // Auto-fill the 3rd tab!
+                }
+              }
+            }
+          } catch(e) { 
+            console.error("Selection reverse geocoding failed", e); 
+          }
+        });
+        unsubscribe = sub.unsubscribe;
+      } catch(e) {}
+    };
+    setupSelection();
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [includeContext]);
 
   const handleImportContext = async () => {
     if (!refPoint) return;

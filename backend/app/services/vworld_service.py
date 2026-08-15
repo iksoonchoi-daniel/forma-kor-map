@@ -104,6 +104,55 @@ def geocode_address(address: str):
         
     return None
 
+def get_cadastre_target_and_context_by_point(lon: float, lat: float, include_context: bool = False):
+    geom_filter = f"POINT({lon} {lat})"
+    
+    try:
+        geojson_data = fetch_vworld_data(geom_filter)
+    except Exception as e:
+        print(f"Failed to fetch cadastre for point {lon},{lat}: {e}")
+        geojson_data = {}
+        
+    if not geojson_data.get("features"):
+        return {"target": {"type": "FeatureCollection", "features": []}, "context": None}
+        
+    target_fc = {"type": "FeatureCollection", "features": geojson_data["features"]}
+    context_fc = None
+    
+    if include_context:
+        try:
+            import geopandas as gpd
+            gdf = gpd.GeoDataFrame.from_features(target_fc["features"])
+            gdf.set_crs(epsg=4326, inplace=True)
+            unioned_geom = gdf.geometry.unary_union
+            
+            import pyproj
+            from shapely.ops import transform
+            wgs84 = pyproj.CRS("EPSG:4326")
+            epsg5179 = pyproj.CRS("EPSG:5179")
+            transformer_to_m = pyproj.Transformer.from_crs(wgs84, epsg5179, always_xy=True)
+            transformer_to_deg = pyproj.Transformer.from_crs(epsg5179, wgs84, always_xy=True)
+            
+            unioned_geom_m = transform(transformer_to_m.transform, unioned_geom)
+            buffer_50m = unioned_geom_m.buffer(50.0)
+            
+            minx_m, miny_m, maxx_m, maxy_m = buffer_50m.bounds
+            minx, miny = transformer_to_deg.transform(minx_m, miny_m)
+            maxx, maxy = transformer_to_deg.transform(maxx_m, maxy_m)
+            
+            context_geojson = get_cadastre_by_bbox(minx, miny, maxx, maxy)
+            if context_geojson and context_geojson.get("features"):
+                target_pnus = set(f.get("properties", {}).get("pnu") for f in target_fc["features"])
+                target_jibuns = set(f.get("properties", {}).get("jibun") for f in target_fc["features"])
+                filtered_context = [f for f in context_geojson["features"] 
+                                    if f.get("properties", {}).get("pnu") not in target_pnus 
+                                    and f.get("properties", {}).get("jibun") not in target_jibuns]
+                context_fc = {"type": "FeatureCollection", "features": filtered_context}
+        except Exception as e:
+            print(f"Failed to fetch context: {e}")
+            
+    return {"target": target_fc, "context": context_fc}
+
 def get_cadastre_by_addresses(addresses: list, include_context: bool = False):
     features = []
     main_props = {}

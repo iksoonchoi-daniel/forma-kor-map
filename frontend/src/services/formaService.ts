@@ -5,74 +5,97 @@ export async function getProjectLocation() {
     return location;
 }
 
+export async function getExistingJibuns(): Promise<Set<string>> {
+    const existingJibuns = new Set<string>();
+    try {
+        const { Forma } = await import("forma-embedded-view-sdk/auto");
+        const rootUrn = await Forma.proposal.getRootUrn();
+        const { elements: allElements } = await Forma.elements.get({ urn: rootUrn, recursive: true });
+        for (const el of Object.values(allElements)) {
+            const name = (el as any).properties?.name;
+            if (name && name !== "Cadastre") {
+                existingJibuns.add(name);
+            }
+        }
+    } catch (e) {
+        console.warn("중복 체크를 위한 기존 폴리곤 조회를 실패했습니다.", e);
+    }
+    return existingJibuns;
+}
+
 export async function addSiteLimitElements(features: any[], refLon: number, refLat: number, category: string = "site_limit") {
     const { wgs84ToLocalMeters } = await import("./coordTransform");
+    const { Forma } = await import("forma-embedded-view-sdk/auto");
+    const existingJibuns = await getExistingJibuns();
 
-    const geoJsonFeatures = features.map(feature => {
-        let footprint: [number, number][][] = [];
+    const geoJsonFeatures = features
+        .filter(feature => {
+            const jibun = feature.properties?.jibun || feature.properties?.addr;
+            return !jibun || !existingJibuns.has(jibun);
+        })
+        .map(feature => {
+            let footprint: [number, number][][] = [];
 
-        if (feature.geometry.type === "Polygon") {
-            footprint = feature.geometry.coordinates.map((ring: number[][]) => {
-                const newRing = ring.map((coord: number[]) => {
-                    const [x, y] = wgs84ToLocalMeters(refLon, refLat, coord[0], coord[1]);
-                    return [x, y];
+            if (feature.geometry.type === "Polygon") {
+                footprint = feature.geometry.coordinates.map((ring: number[][]) => {
+                    const newRing = ring.map((coord: number[]) => {
+                        const [x, y] = wgs84ToLocalMeters(refLon, refLat, coord[0], coord[1]);
+                        return [x, y];
+                    });
+                    
+                    let sum = 0;
+                    for (let i = 0; i < newRing.length - 1; i++) {
+                        sum += (newRing[i+1][0] - newRing[i][0]) * (newRing[i+1][1] + newRing[i][1]);
+                    }
+                    if (sum > 0) {
+                        newRing.reverse();
+                    }
+                    return newRing;
                 });
-                
-                // Enforce counter-clockwise winding order (required by Forma/GeoJSON)
-                let sum = 0;
-                for (let i = 0; i < newRing.length - 1; i++) {
-                    sum += (newRing[i+1][0] - newRing[i][0]) * (newRing[i+1][1] + newRing[i][1]);
-                }
-                if (sum > 0) {
-                    newRing.reverse(); // reverse if clockwise
-                }
-                return newRing;
-            });
-        } else if (feature.geometry.type === "MultiPolygon") {
-            // Take the first polygon for simplicity
-            footprint = feature.geometry.coordinates[0].map((ring: number[][]) => {
-                const newRing = ring.map((coord: number[]) => {
-                    const [x, y] = wgs84ToLocalMeters(refLon, refLat, coord[0], coord[1]);
-                    return [x, y];
+            } else if (feature.geometry.type === "MultiPolygon") {
+                footprint = feature.geometry.coordinates[0].map((ring: number[][]) => {
+                    const newRing = ring.map((coord: number[]) => {
+                        const [x, y] = wgs84ToLocalMeters(refLon, refLat, coord[0], coord[1]);
+                        return [x, y];
+                    });
+                    
+                    let sum = 0;
+                    for (let i = 0; i < newRing.length - 1; i++) {
+                        sum += (newRing[i+1][0] - newRing[i][0]) * (newRing[i+1][1] + newRing[i][1]);
+                    }
+                    if (sum > 0) {
+                        newRing.reverse();
+                    }
+                    return newRing;
                 });
-                
-                let sum = 0;
-                for (let i = 0; i < newRing.length - 1; i++) {
-                    sum += (newRing[i+1][0] - newRing[i][0]) * (newRing[i+1][1] + newRing[i][1]);
-                }
-                if (sum > 0) {
-                    newRing.reverse(); // reverse if clockwise
-                }
-                return newRing;
-            });
-        }
+            }
 
-        const elementId = crypto.randomUUID();
-        
-        return {
-            elementId,
-            featureId: elementId,
-            properties: feature.properties,
-            geoJsonFeature: {
-                id: elementId,
-                type: "Feature",
-                geometry: {
-                    type: "Polygon",
-                    coordinates: footprint
-                },
-                properties: {
-                    stroke: {
-                        color: "#4285F4", // Google Blue color for lines
-                        lineWidth: 1.0
+            const elementId = crypto.randomUUID();
+            
+            return {
+                elementId,
+                featureId: elementId,
+                properties: feature.properties,
+                geoJsonFeature: {
+                    id: elementId,
+                    type: "Feature",
+                    geometry: {
+                        type: "Polygon",
+                        coordinates: footprint
                     },
-                    fill: {
-                        color: "#4285F4",
-                        opacity: 0.05 // Very transparent fill
+                    properties: {
+                        stroke: {
+                            color: "#4285F4",
+                            lineWidth: 1.0
+                        },
+                        fill: {
+                            color: "#4285F4",
+                            opacity: 0.05
+                        }
                     }
                 }
-            }
-        };
-    });
+            };
+        });
 
     if (geoJsonFeatures.length === 0) return;
 
@@ -81,7 +104,6 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
         features: geoJsonFeatures.map(f => f.geoJsonFeature)
     };
 
-    // Upload the combined GeoJSON file ONCE
     const uploadResult = await Forma.integrateElements.uploadFile({
         data: JSON.stringify(geoJsonData)
     });
@@ -92,7 +114,7 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
             properties: {
                 name: f.properties?.jibun || f.properties?.addr || "Cadastre",
                 category: category,
-                virtual: category !== "site_limit", // IMPORTANT: Must be false for site_limit to enable area analysis
+                virtual: category !== "site_limit",
             },
             representations: {
                 footprint: {
@@ -116,14 +138,10 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
     });
 
     if (batchItems.length > 0) {
-        console.log("Adding elements payload:", JSON.stringify(batchItems, null, 2));
-        
         try {
             const result = await Forma.integrateElements.batchIngestElementsV2({
                 items: batchItems
             });
-
-            console.log("Batch ingest result:", JSON.stringify(result, null, 2));
 
             for (let i = 0; i < result.items.length; i++) {
                 const item = result.items[i];
