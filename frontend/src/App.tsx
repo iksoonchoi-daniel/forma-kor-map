@@ -66,6 +66,21 @@ function App() {
         const sub = await Forma.selection.subscribe(async ({ paths }) => {
           if (!paths || paths.length === 0) return;
           try {
+            const { element } = await Forma.elements.getByPath({ path: paths[0] });
+            const storedId = element?.properties?.formaKorMapElementId;
+            if (storedId) {
+                const cached = localStorage.getItem(`formaKorMap_${storedId}`);
+                if (cached) {
+                    const data = JSON.parse(cached);
+                    const jibun = element.properties?.name;
+                    if (jibun && !jibun.includes("Cadastre")) {
+                        setAddresses(jibun);
+                    }
+                    setAnalysisData(data);
+                    return; // 완벽하게 복원 완료 (다중 필지, 주변 도로 모두 유지됨)
+                }
+            }
+
             const footprint = await Forma.geometry.getFootprint({ path: paths[0] });
             if (!footprint || !footprint.coordinates || footprint.coordinates.length === 0) return;
             
@@ -86,8 +101,10 @@ function App() {
             if (res.ok) {
               const data = await res.json();
               if (data.target && data.target.features && data.target.features.length > 0) {
-                const jibun = data.target.features[0].properties?.jibun;
-                const pnu = data.target.features[0].properties?.pnu;
+                const props = data.target.features[0].properties;
+                const jibun = props?.jibun;
+                const pnu = props?.pnu;
+                const addr = props?.addr;
                 
                 // If this is the exact same parcel we just generated/loaded, do nothing
                 // to avoid overwriting the user's typed address.
@@ -96,7 +113,19 @@ function App() {
                 }
                 
                 if (jibun) {
-                  setAddresses(jibun); // Auto-fill the address input!
+                  let formattedAddress = jibun;
+                  if (addr) {
+                    const lastChar = jibun.trim().slice(-1);
+                    const jimok = isNaN(Number(lastChar)) ? lastChar : '';
+                    const parts = addr.split(' ');
+                    if (parts.length >= 2) {
+                      formattedAddress = `${parts[parts.length - 2]} ${parts[parts.length - 1]} ${jimok ? '('+jimok+')' : ''}`.trim();
+                    } else {
+                      formattedAddress = `${addr} ${jimok ? '('+jimok+')' : ''}`.trim();
+                    }
+                  }
+                  
+                  setAddresses(formattedAddress); // Auto-fill the address input!
                   setAnalysisData({ targetFC: data.target, contextFC: data.context }); // Auto-fill the 3rd tab!
                 }
               }
@@ -166,7 +195,7 @@ function App() {
         throw new Error("해당 주소의 지적도 데이터를 찾을 수 없습니다.")
       }
 
-      await addSiteLimitElements(targetFC.features, refPoint.lon, refPoint.lat, "site_limit")
+      const elementIds = await addSiteLimitElements(targetFC.features, refPoint.lon, refPoint.lat, "site_limit")
       
       let msg = `성공적으로 주소지의 지적도를 대지경계선(Site Limit)으로 임포트했습니다.`
       if (contextFC && contextFC.features && contextFC.features.length > 0) {
@@ -174,12 +203,18 @@ function App() {
         msg += ` 주변 50m 지적도(${contextFC.features.length}개)도 함께 배경으로 임포트했습니다.`
       }
       
-      setAnalysisData({ targetFC, contextFC });
+      const newAnalysisData = { targetFC, contextFC };
+      setAnalysisData(newAnalysisData);
+      
       try {
+        if (elementIds && elementIds.length > 0) {
+           localStorage.setItem(`formaKorMap_${elementIds[0]}`, JSON.stringify(newAnalysisData));
+        }
+        
         const { Forma } = await import("forma-embedded-view-sdk/auto");
         const project = await Forma.project.get();
         const localKey = `forma-cadastre-analysis-${project.hubId}-${project.name}`;
-        localStorage.setItem(localKey, JSON.stringify({ targetFC, contextFC }));
+        localStorage.setItem(localKey, JSON.stringify(newAnalysisData));
       } catch(e) { 
         console.error("Failed to cache analysis data", e); 
       }

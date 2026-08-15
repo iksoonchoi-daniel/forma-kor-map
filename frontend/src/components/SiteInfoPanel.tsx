@@ -261,7 +261,35 @@ export default function SiteInfoPanel({ targetFC, contextFC }: SiteInfoPanelProp
     return "#f5f5f5";
   };
 
-  const targetJibun = targetFC?.features?.[0]?.properties?.jibun || '지번 정보 없음';
+  const getFormattedJibun = () => {
+    const props = targetFC?.features?.[0]?.properties;
+    if (!props) return '지번 정보 없음';
+    
+    const addr = props.addr;
+    const jibun = props.jibun || '';
+    
+    if (jibun.includes('외')) {
+       // 다중 필지인 경우
+       const parts = addr ? addr.split(' ') : [];
+       const dong = parts.length >= 2 ? parts[parts.length - 2] : '';
+       return dong ? `${dong} ${jibun}` : jibun;
+    }
+    
+    const lastChar = jibun.trim().slice(-1);
+    const jimok = isNaN(Number(lastChar)) ? lastChar : '';
+    
+    if (addr) {
+      const parts = addr.split(' ');
+      if (parts.length >= 2) {
+        return `${parts[parts.length - 2]} ${parts[parts.length - 1]} ${jimok ? '('+jimok+')' : ''}`;
+      }
+      return `${addr} ${jimok ? '('+jimok+')' : ''}`;
+    }
+    
+    return jibun;
+  };
+
+  const targetJibun = getFormattedJibun();
 
   return (
     <div className="tab-content">

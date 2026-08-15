@@ -23,7 +23,7 @@ export async function getExistingJibuns(): Promise<Set<string>> {
     return existingJibuns;
 }
 
-export async function addSiteLimitElements(features: any[], refLon: number, refLat: number, category: string = "site_limit") {
+export async function addSiteLimitElements(features: any[], refLon: number, refLat: number, category: string = "site_limit"): Promise<string[]> {
     const { wgs84ToLocalMeters } = await import("./coordTransform");
     const { Forma } = await import("forma-embedded-view-sdk/auto");
     const existingJibuns = await getExistingJibuns();
@@ -97,7 +97,7 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
             };
         });
 
-    if (geoJsonFeatures.length === 0) return;
+    if (geoJsonFeatures.length === 0) return [];
 
     const geoJsonData = {
         type: "FeatureCollection",
@@ -115,6 +115,7 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
                 name: f.properties?.jibun || f.properties?.addr || "Cadastre",
                 category: category,
                 virtual: category !== "site_limit",
+                formaKorMapElementId: f.featureId,
             },
             representations: {
                 footprint: {
@@ -157,4 +158,6 @@ export async function addSiteLimitElements(features: any[], refLon: number, refL
             throw err;
         }
     }
+    
+    return geoJsonFeatures.map(f => f.featureId);
 }
