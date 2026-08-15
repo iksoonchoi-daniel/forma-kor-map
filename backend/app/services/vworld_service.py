@@ -104,7 +104,7 @@ def geocode_address(address: str):
         
     return None
 
-def get_cadastre_by_addresses(addresses: list):
+def get_cadastre_by_addresses(addresses: list, include_context: bool = False):
     features = []
     main_props = {}
     for address in addresses:
@@ -128,7 +128,7 @@ def get_cadastre_by_addresses(addresses: list):
             print(f"Failed to fetch cadastre for address {address}: {e}")
             
     if not features:
-        return {"type": "FeatureCollection", "features": []}
+        return {"target": {"type": "FeatureCollection", "features": []}, "context": None}
         
     try:
         import geopandas as gpd
@@ -138,11 +138,9 @@ def get_cadastre_by_addresses(addresses: list):
         unioned_geom = gdf.geometry.unary_union
         
         # Create a single feature from the unioned geometry
-        # We use shapely's mapping to convert back to GeoJSON
         from shapely.geometry import mapping
         unioned_geojson = mapping(unioned_geom)
         
-        # Adjust main properties name if multiple addresses
         if len(addresses) > 1 and "jibun" in main_props:
             main_props["jibun"] = f"{main_props['jibun']} 외 {len(addresses)-1}필지"
             
@@ -151,7 +149,41 @@ def get_cadastre_by_addresses(addresses: list):
             "properties": main_props,
             "geometry": unioned_geojson
         }
-        return {"type": "FeatureCollection", "features": [merged_feature]}
+        target_fc = {"type": "FeatureCollection", "features": [merged_feature]}
+
+        context_fc = None
+        if include_context:
+            import pyproj
+            wgs84 = pyproj.CRS("EPSG:4326")
+            epsg5179 = pyproj.CRS("EPSG:5179")
+            transformer_to_m = pyproj.Transformer.from_crs(wgs84, epsg5179, always_xy=True)
+            transformer_to_deg = pyproj.Transformer.from_crs(epsg5179, wgs84, always_xy=True)
+            
+            # Reproject unioned geometry to meters to apply exact 50m buffer
+            from shapely.ops import transform
+            unioned_geom_m = transform(transformer_to_m.transform, unioned_geom)
+            buffer_50m = unioned_geom_m.buffer(50.0)
+            
+            minx_m, miny_m, maxx_m, maxy_m = buffer_50m.bounds
+            minx, miny = transformer_to_deg.transform(minx_m, miny_m)
+            maxx, maxy = transformer_to_deg.transform(maxx_m, maxy_m)
+            
+            context_geojson = get_cadastre_by_bbox(minx, miny, maxx, maxy)
+            if context_geojson and context_geojson.get("features"):
+                # Filter out the target parcels from context
+                target_pnus = set(f.get("properties", {}).get("pnu") for f in features if f.get("properties", {}).get("pnu"))
+                target_jibuns = set(f.get("properties", {}).get("jibun") for f in features if f.get("properties", {}).get("jibun"))
+                
+                filtered_context = []
+                for f in context_geojson["features"]:
+                    props = f.get("properties", {})
+                    if props.get("pnu") in target_pnus or props.get("jibun") in target_jibuns:
+                        continue
+                    filtered_context.append(f)
+                    
+                context_fc = {"type": "FeatureCollection", "features": filtered_context}
+        
+        return {"target": target_fc, "context": context_fc}
     except Exception as e:
         print(f"Failed to union geometries: {e}")
-        return {"type": "FeatureCollection", "features": features}
+        return {"target": {"type": "FeatureCollection", "features": features}, "context": None}

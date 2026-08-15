@@ -11,6 +11,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState<'context' | 'site'>('context')
   const [addresses, setAddresses] = useState<string>('')
+  const [includeContext, setIncludeContext] = useState<boolean>(false)
 
   useEffect(() => {
     // Initialize ref point from Forma
@@ -78,16 +79,26 @@ function App() {
     }
     setLoading(true); setError(null); setSuccess(null);
     try {
-      const response = await fetch(`http://localhost:8000/api/cadastre/address?addresses=${encodeURIComponent(addresses)}`)
+      const response = await fetch(`http://localhost:8000/api/cadastre/address?addresses=${encodeURIComponent(addresses)}&include_context=${includeContext}`)
       if (!response.ok) throw new Error(`API 오류: ${response.status}`)
       
-      const geojson = await response.json()
-      if (!geojson.features || geojson.features.length === 0) {
+      const result = await response.json()
+      const targetFC = result.target
+      const contextFC = result.context
+
+      if (!targetFC || !targetFC.features || targetFC.features.length === 0) {
         throw new Error("해당 주소의 지적도 데이터를 찾을 수 없습니다.")
       }
 
-      await addSiteLimitElements(geojson.features, refPoint.lon, refPoint.lat, "site_limit")
-      setSuccess(`성공적으로 주소지의 지적도를 대지경계선(Site Limit)으로 임포트했습니다.`)
+      await addSiteLimitElements(targetFC.features, refPoint.lon, refPoint.lat, "site_limit")
+      
+      let msg = `성공적으로 주소지의 지적도를 대지경계선(Site Limit)으로 임포트했습니다.`
+      if (contextFC && contextFC.features && contextFC.features.length > 0) {
+        await addSiteLimitElements(contextFC.features, refPoint.lon, refPoint.lat, "지적도")
+        msg += ` 주변 50m 지적도(${contextFC.features.length}개)도 함께 배경으로 임포트했습니다.`
+      }
+      
+      setSuccess(msg)
     } catch (err: any) {
       setError(err.message || "오류가 발생했습니다.")
     } finally {
@@ -140,6 +151,15 @@ function App() {
               rows={3}
               className="text-input"
             />
+            <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+              <input 
+                type="checkbox" 
+                checked={includeContext} 
+                onChange={(e) => setIncludeContext(e.target.checked)} 
+                disabled={loading}
+              />
+              주변 50m 연속지적도 함께 불러오기 (배경선)
+            </label>
           </div>
           <button className="primary-btn" onClick={handleImportSiteLimit} disabled={loading || !refPoint}>
             {loading ? "불러오는 중..." : "대지경계선 생성하기"}

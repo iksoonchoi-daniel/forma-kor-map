@@ -30,10 +30,10 @@ async def get_cadastre_bbox(minx: float, miny: float, maxx: float, maxy: float):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/cadastre/address")
-async def get_cadastre_address(addresses: str):
+async def get_cadastre_address(addresses: str, include_context: bool = False):
     try:
         addr_list = [a.strip() for a in addresses.split(",") if a.strip()]
-        result = get_cadastre_by_addresses(addr_list)
+        result = get_cadastre_by_addresses(addr_list, include_context)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
