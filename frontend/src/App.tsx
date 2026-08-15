@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getProjectLocation, addSiteLimitElements } from './services/formaService'
+import SiteInfoPanel from './components/SiteInfoPanel'
 import './index.css'
 
 function App() {
@@ -9,9 +10,10 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'context' | 'site'>('context')
+  const [activeTab, setActiveTab] = useState<'context' | 'site' | 'info'>('context')
   const [addresses, setAddresses] = useState<string>('')
   const [includeContext, setIncludeContext] = useState<boolean>(false)
+  const [analysisData, setAnalysisData] = useState<{targetFC: any, contextFC: any} | null>(null)
 
   useEffect(() => {
     // Initialize ref point from Forma
@@ -98,6 +100,7 @@ function App() {
         msg += ` 주변 50m 지적도(${contextFC.features.length}개)도 함께 배경으로 임포트했습니다.`
       }
       
+      setAnalysisData({ targetFC, contextFC });
       setSuccess(msg)
     } catch (err: any) {
       setError(err.message || "오류가 발생했습니다.")
@@ -122,6 +125,12 @@ function App() {
           onClick={() => { setActiveTab('site'); setError(null); setSuccess(null); }}
         >
           타겟 대지경계선 (Site Limit)
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('info'); setError(null); setSuccess(null); }}
+        >
+          대지정보 (Analysis)
         </button>
       </div>
 
@@ -165,6 +174,13 @@ function App() {
             {loading ? "불러오는 중..." : "대지경계선 생성하기"}
           </button>
         </div>
+      )}
+
+      {activeTab === 'info' && (
+        <SiteInfoPanel 
+          targetFC={analysisData?.targetFC} 
+          contextFC={analysisData?.contextFC} 
+        />
       )}
 
       {error && <div className="feedback-msg error">{error}</div>}
