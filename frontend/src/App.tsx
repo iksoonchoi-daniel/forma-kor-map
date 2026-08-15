@@ -97,7 +97,7 @@ function App() {
             const { localMetersToWgs84 } = await import("./services/coordTransform");
             const [lon, lat] = localMetersToWgs84(refLon, refLat, cx, cy);
             
-            const res = await fetch(`http://localhost:8000/api/cadastre/reverse?lon=${lon}&lat=${lat}&include_context=${includeContext}`);
+            const res = await fetch(`http://localhost:8000/api/cadastre/reverse?lon=${lon}&lat=${lat}&include_context=true`);
             if (res.ok) {
               const data = await res.json();
               if (data.target && data.target.features && data.target.features.length > 0) {
@@ -184,7 +184,8 @@ function App() {
     }
     setLoading(true); setError(null); setSuccess(null);
     try {
-      const response = await fetch(`http://localhost:8000/api/cadastre/address?addresses=${encodeURIComponent(addresses)}&include_context=${includeContext}`)
+      // Always fetch context=true for analysis tab (Tab 3)
+      const response = await fetch(`http://localhost:8000/api/cadastre/address?addresses=${encodeURIComponent(addresses)}&include_context=true`)
       if (!response.ok) throw new Error(`API 오류: ${response.status}`)
       
       const result = await response.json()
@@ -198,7 +199,8 @@ function App() {
       const elementIds = await addSiteLimitElements(targetFC.features, refPoint.lon, refPoint.lat, "site_limit")
       
       let msg = `성공적으로 주소지의 지적도를 대지경계선(Site Limit)으로 임포트했습니다.`
-      if (contextFC && contextFC.features && contextFC.features.length > 0) {
+      // Only inject surrounding context polygons into 3D scene if user checked the box
+      if (includeContext && contextFC && contextFC.features && contextFC.features.length > 0) {
         await addSiteLimitElements(contextFC.features, refPoint.lon, refPoint.lat, "지적도")
         msg += ` 주변 50m 지적도(${contextFC.features.length}개)도 함께 배경으로 임포트했습니다.`
       }
