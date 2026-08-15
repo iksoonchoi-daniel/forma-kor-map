@@ -20,7 +20,6 @@ function App() {
     const initForma = async () => {
       try {
         const location = await getProjectLocation()
-        // getGeoLocation() returns [latitude, longitude] array
         if (location && location.length >= 2) {
           const [lat, lon] = location;
           setRefPoint({ lon, lat })
@@ -29,6 +28,20 @@ function App() {
           setRefPoint({ lon: 127.0276, lat: 37.4979 }); 
           setError("Forma 환경이 감지되지 않아 임시 좌표(강남역)를 사용합니다.");
         }
+
+        // Load cached analysis data
+        try {
+          const { Forma } = await import("forma-embedded-view-sdk/auto");
+          const project = await Forma.project.get();
+          const localKey = `forma-cadastre-analysis-${project.hubId}-${project.name}`;
+          const cached = localStorage.getItem(localKey);
+          if (cached) {
+            setAnalysisData(JSON.parse(cached));
+          }
+        } catch (e) {
+          console.warn("Failed to load cached analysis data", e);
+        }
+
       } catch (err) {
         console.error("Failed to get Forma project location:", err)
         setError("Forma 프로젝트 기준점을 가져오는데 실패했습니다.")
@@ -101,6 +114,14 @@ function App() {
       }
       
       setAnalysisData({ targetFC, contextFC });
+      try {
+        const { Forma } = await import("forma-embedded-view-sdk/auto");
+        const project = await Forma.project.get();
+        const localKey = `forma-cadastre-analysis-${project.hubId}-${project.name}`;
+        localStorage.setItem(localKey, JSON.stringify({ targetFC, contextFC }));
+      } catch(e) { 
+        console.error("Failed to cache analysis data", e); 
+      }
       setSuccess(msg)
     } catch (err: any) {
       setError(err.message || "오류가 발생했습니다.")
