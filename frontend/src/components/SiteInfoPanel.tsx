@@ -30,6 +30,8 @@ export default function SiteInfoPanel({ targetFC, contextFC }: SiteInfoPanelProp
   const [loading, setLoading] = useState(false);
   const [area, setArea] = useState<number>(0);
   const [zoomPadding, setZoomPadding] = useState<number>(20);
+  const [zoning, setZoning] = useState<string>('');
+  const [roads, setRoads] = useState<RawPolygon[]>([]);
 
   useEffect(() => {
     async function analyzeSite() {
@@ -149,6 +151,12 @@ export default function SiteInfoPanel({ targetFC, contextFC }: SiteInfoPanelProp
           }
         }
 
+        const adjacentRoads = filteredPolygons.filter(p => !p.isTarget && p.type === "도로");
+        setRoads(adjacentRoads);
+        
+        const zProp = targetFC.features[0].properties?.zoning || "정보 없음 (역추적 필요)";
+        setZoning(zProp);
+
         setRawPolygons(filteredPolygons);
         setRawElevations(elevationData);
 
@@ -265,6 +273,25 @@ export default function SiteInfoPanel({ targetFC, contextFC }: SiteInfoPanelProp
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: '12px', color: '#666' }}>최대 고저차</div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#d32f2f' }}>{diff.toFixed(2)} m</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', background: '#e3f2fd', padding: '10px', borderRadius: '8px' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '12px', color: '#1565c0' }}>용도지역 (토지이용계획)</div>
+          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#0d47a1', marginTop: '4px' }}>{zoning}</div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '12px', color: '#1565c0' }}>인접 도로 현황</div>
+          <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#0d47a1', marginTop: '4px' }}>
+            {roads.length > 0 ? (
+              <ul style={{ margin: 0, paddingLeft: '15px', lineHeight: '1.4' }}>
+                {roads.map((r, i) => (
+                  <li key={i}>{r.jibun} <span style={{ color: '#d32f2f', fontWeight: 'normal' }}>(폭 4m 미만 시 건축선 후퇴 주의)</span></li>
+                ))}
+              </ul>
+            ) : "직접 인접한 도로(지목 '도')가 없습니다."}
+          </div>
         </div>
       </div>
 

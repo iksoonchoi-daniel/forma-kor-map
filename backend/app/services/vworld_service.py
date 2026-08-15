@@ -32,6 +32,27 @@ def fetch_vworld_data(geomFilter: str):
             return {"type": "FeatureCollection", "features": []}
         raise Exception(f"VWorld API Error: {data}")
 
+def fetch_zoning_data(lon: float, lat: float):
+    params = {
+        "service": "data",
+        "request": "GetFeature",
+        "data": "lt_c_uq111",
+        "key": settings.VWORLD_API_KEY,
+        "domain": settings.VWORLD_DOMAIN,
+        "geomFilter": f"POINT({lon} {lat})",
+        "geometry": "false",
+        "size": "100"
+    }
+    response = requests.get(VWORLD_DATA_API_URL, params=params)
+    if response.status_code == 200:
+        data = response.json()
+        if "response" in data and data["response"]["status"] == "OK":
+            features = data["response"]["result"].get("featureCollection", {}).get("features", [])
+            zones = [f.get("properties", {}).get("uname", "") for f in features]
+            valid_zones = [z for z in zones if z and z.strip()]
+            return valid_zones
+    return []
+
 def get_cadastre_by_bbox(minx: float, miny: float, maxx: float, maxy: float):
     # geomFilter format for BOX: BOX(minx,miny,maxx,maxy)
     geom_filter = f"BOX({minx},{miny},{maxx},{maxy})"
@@ -117,6 +138,12 @@ def get_cadastre_target_and_context_by_point(lon: float, lat: float, include_con
         return {"target": {"type": "FeatureCollection", "features": []}, "context": None}
         
     target_fc = {"type": "FeatureCollection", "features": geojson_data["features"]}
+    
+    # Fetch Zoning Info
+    zones = fetch_zoning_data(lon, lat)
+    if zones and len(target_fc["features"]) > 0:
+        target_fc["features"][0]["properties"]["zoning"] = ", ".join(zones)
+        
     context_fc = None
     
     if include_context:
@@ -192,6 +219,12 @@ def get_cadastre_by_addresses(addresses: list, include_context: bool = False):
         
         if len(addresses) > 1 and "jibun" in main_props:
             main_props["jibun"] = f"{main_props['jibun']} 외 {len(addresses)-1}필지"
+            
+        # Fetch Zoning info using the first address coordinates (approx)
+        if coords:
+            zones = fetch_zoning_data(coords[0], coords[1])
+            if zones:
+                main_props["zoning"] = ", ".join(zones)
             
         merged_feature = {
             "type": "Feature",
