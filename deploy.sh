@@ -13,8 +13,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-AGENT_DIR="$ROOT/code-review-agent"
-EXT_DIR="$ROOT/forma-code-review"
+AGENT_DIR="$ROOT/backend"
+EXT_DIR="$ROOT/frontend"
 SERVER_URL="https://10.30.11.65:3501"
 AGENT_URL="http://127.0.0.1:8501"
 
