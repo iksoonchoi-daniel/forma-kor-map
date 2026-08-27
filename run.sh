@@ -19,7 +19,7 @@ trap cleanup INT
 echo "Starting Backend API Server (FastAPI)..."
 cd backend || exit
 source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001 &
 BACKEND_PID=$!
 cd ..
 
@@ -32,7 +32,7 @@ cd ..
 
 echo ""
 echo "✅ Servers are successfully running!"
-echo "➡️  Backend Docs (Swagger) : http://localhost:8000/docs"
+echo "➡️  Backend Docs (Swagger) : http://localhost:8001/docs"
 echo "➡️  Frontend App URL       : http://localhost:3000"
 echo "🛑 Press [Ctrl+C] to stop both servers."
 echo ""

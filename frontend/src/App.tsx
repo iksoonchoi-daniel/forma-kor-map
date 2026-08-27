@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { getProjectLocation, addSiteLimitElements } from './services/formaService'
 import SiteInfoPanel from './components/SiteInfoPanel'
+import ConstraintsPanel from './components/ConstraintsPanel'
 import './index.css'
 
 function App() {
   const [refPoint, setRefPoint] = useState<{ lon: number, lat: number } | null>(null)
-  const [buffer, setBuffer] = useState<number>(300)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'context' | 'site' | 'info'>('context')
+  const [activeTab, setActiveTab] = useState<'context' | 'site' | 'info' | 'constraints'>('context')
   const [addresses, setAddresses] = useState<string>('')
   const [includeContext, setIncludeContext] = useState<boolean>(false)
   const [analysisData, setAnalysisData] = useState<{targetFC: any, contextFC: any} | null>(null)
@@ -251,6 +251,12 @@ function App() {
         >
           대지정보 (Analysis)
         </button>
+        <button 
+          className={`tab-btn ${activeTab === 'constraints' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('constraints'); setError(null); setSuccess(null); }}
+        >
+          건축한계 (Constraints)
+        </button>
       </div>
 
       {activeTab === 'context' && (
@@ -297,6 +303,13 @@ function App() {
 
       {activeTab === 'info' && (
         <SiteInfoPanel 
+          targetFC={analysisData?.targetFC} 
+          contextFC={analysisData?.contextFC} 
+        />
+      )}
+
+      {activeTab === 'constraints' && (
+        <ConstraintsPanel 
           targetFC={analysisData?.targetFC} 
           contextFC={analysisData?.contextFC} 
         />

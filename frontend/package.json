@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/turf": "^7.4.0",
+    "earcut": "^3.2.3",
     "forma-embedded-view-sdk": "^0.93.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
