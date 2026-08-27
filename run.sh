@@ -33,7 +33,7 @@ cd ..
 echo ""
 echo "✅ Servers are successfully running!"
 echo "➡️  Backend Docs (Swagger) : http://localhost:8001/docs"
-echo "➡️  Frontend App URL       : http://localhost:3000"
+echo "➡️  Frontend App URL       : http://localhost:3501"
 echo "🛑 Press [Ctrl+C] to stop both servers."
 echo ""
 
